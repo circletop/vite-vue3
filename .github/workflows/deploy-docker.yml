@@ -5,7 +5,7 @@ on:
 jobs:
   # 构建并上传 Docker镜像
   build: 
-    runs-on: centos-latest # 依赖的环境      
+    runs-on: ubuntu-latest # 依赖的环境      
     steps:
       - uses: actions/checkout@v2
       - name: Build Image
