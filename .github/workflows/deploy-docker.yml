@@ -4,47 +4,33 @@ on:
     branches: [ master ]
 jobs:
   # 构建并上传 Docker镜像
-  build: 
-    runs-on: centos-latest # 依赖的环境      
+  build:
+    runs-on: ubuntu-latest # 依赖的环境
     steps:
-      - uses: actions/checkout@v2
-      - name: Build Image
-        run: |
-          docker build -t yiyungent/simcaptcha -f examples/EasyAspNetCoreService/Dockerfile .
-          docker build -t yiyungent/simcaptcha-client -f examples/AspNetCoreClient/Dockerfile .
-      - name: Login to Registry
-        run: docker login --username=${{ secrets.DOCKER_USERNAME }} --password ${{ secrets.DOCKER_PASSWORD }}
-      - name: Push Image
-        run: |
-          docker push yiyungent/simcaptcha
-          docker push yiyungent/simcaptcha-client
-        
-  # Docker 自动部署
-  deploy-docker: 
-    needs: [build]
-    name: Deploy Docker
-    runs-on: ubuntu-latest
-    steps:
-      - name: Deploy
-        uses: appleboy/ssh-action@master
+      - name: Checkout
+        uses: actions/checkout@v2
         with:
-          host: ${{ secrets.HOST }} # 服务器ip
-          username: ${{ secrets.HOST_USERNAME }} # 服务器登录用户名
-          password: ${{ secrets.HOST_PASSWORD }} # 服务器登录密码
-          port: ${{ secrets.HOST_PORT }} # 服务器ssh端口
-          script: |
-            # 切换工作区
-            cd simcaptcha
-            # 下载 docker-compose.yml
-            wget -O docker-compose.yml https://raw.githubusercontent.com/yiyungent/SimCaptcha/master/docker-compose.yml
-            # 停止并删除旧 容器、网络、挂载点
-            #docker-compose down                          # TODO: docker-compose: command not found. 不知道为什么找不到 docker-compose，但直接连接服务器执行就可以
-            /usr/local/python3/bin/docker-compose down
-            # 删除旧镜像
-            docker rmi yiyungent/simcaptcha 
-            docker rmi yiyungent/simcaptcha-client
-            # 登录镜像服务器
-            docker login --username=${{ secrets.DOCKER_USERNAME }} --password ${{ secrets.DOCKER_PASSWORD }} 
-            # 创建并启动容器
-            #docker-compose up -d --build
-            /usr/local/python3/bin/docker-compose up -d --build
+          persist-credentials: false
+      - name: Install and Build
+        run: |
+          npm install
+          npm run build
+      - name: Log in to Docker Hub #登陆docker
+        uses: docker/login-action@f054a8b539a109f9f41c372932f1ae047eff08c9
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}  #docker的用户名
+          password: ${{ secrets.DOCKER_PASSWORD }}	#docker的密码
+      
+      - name: Extract metadata (tags, labels) for Docker # 获取元数据包括tag和labels
+        id: meta
+        uses: docker/metadata-action@98669ae865ea3cffbcbaa878cf57c20bbf1c6c38
+        with:
+          images: blog/vite-project
+
+      - name: Build and push Docker image  #构建和发布 docker镜像
+        uses: docker/build-push-action@ad44023a93711e3deb337508980b4b5e9bcdc5dc
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}  #上一步所拿到的tags，默认是分支名字
+          labels: ${{ steps.meta.outputs.labels }} # 上一步所拿到的labels
